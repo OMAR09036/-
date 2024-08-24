@@ -1,0 +1,124 @@
+<?php
+session_start();
+require 'db.php'; // تأكد من وجود ملف db.php مع إعدادات قاعدة البيانات
+
+// وظيفة تسجيل الدخول
+if (isset($_POST['login'])) {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['role'] = $user['role'];
+        header("Location: index.php");
+        exit();
+    } else {
+        $login_error = "Invalid credentials";
+    }
+}
+
+// وظيفة تسجيل الخروج
+if (isset($_GET['logout'])) {
+    session_unset();
+    session_destroy();
+    header("Location: index.php");
+    exit();
+}
+
+// وظيفة إضافة درس (للمدير فقط)
+if (isset($_POST['add_lesson']) && $_SESSION['role'] === 'admin') {
+    $grade = $_POST['grade'];
+    $subject = $_POST['subject'];
+    $video_url = $_POST['video_url'];
+
+    $stmt = $pdo->prepare("INSERT INTO lessons (grade, subject, video_url) VALUES (?, ?, ?)");
+    $stmt->execute([$grade, $subject, $video_url]);
+    $lesson_message = "Lesson added successfully";
+}
+
+// عرض الدروس
+$grade = isset($_GET['grade']) ? $_GET['grade'] : '4';
+$lessons = [];
+
+if ($_SESSION['role'] === 'student') {
+    $stmt = $pdo->prepare("SELECT * FROM lessons WHERE grade = ?");
+    $stmt->execute([$grade]);
+    $lessons = $stmt->fetchAll();
+}
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mr. Ahmed Hossny - Educational Platform</title>
+</head>
+<body>
+    <?php if (!isset($_SESSION['user_id'])): ?>
+        <h1>Login</h1>
+        <?php if (isset($login_error)): ?>
+            <p><?php echo htmlspecialchars($login_error); ?></p>
+        <?php endif; ?>
+        <form method="POST">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <br>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <br>
+            <button type="submit" name="login">Login</button>
+        </form>
+    <?php else: ?>
+        <h1>Welcome, <?php echo htmlspecialchars($_SESSION['role']); ?></h1>
+        <?php if ($_SESSION['role'] === 'admin'): ?>
+            <h2>Admin Panel</h2>
+            <?php if (isset($lesson_message)): ?>
+                <p><?php echo htmlspecialchars($lesson_message); ?></p>
+            <?php endif; ?>
+            <form method="POST">
+                <label for="grade">Grade:</label>
+                <input type="text" id="grade" name="grade" required>
+                <br>
+                <label for="subject">Subject:</label>
+                <input type="text" id="subject" name="subject" required>
+                <br>
+                <label for="video_url">Video URL:</label>
+                <input type="text" id="video_url" name="video_url" required>
+                <br>
+                <button type="submit" name="add_lesson">Add Lesson</button>
+            </form>
+        <?php endif; ?>
+
+        <?php if ($_SESSION['role'] === 'student'): ?>
+            <h2>Lessons for Grade <?php echo htmlspecialchars($grade); ?></h2>
+            <form method="GET">
+                <label for="grade">Select Grade:</label>
+                <select name="grade" id="grade">
+                    <option value="4" <?php echo $grade == '4' ? 'selected' : ''; ?>>4th Grade</option>
+                    <option value="5" <?php echo $grade == '5' ? 'selected' : ''; ?>>5th Grade</option>
+                    <option value="6" <?php echo $grade == '6' ? 'selected' : ''; ?>>6th Grade</option>
+                    <option value="7" <?php echo $grade == '7' ? 'selected' : ''; ?>>7th Grade</option>
+                    <option value="8" <?php echo $grade == '8' ? 'selected' : ''; ?>>8th Grade</option>
+                    <option value="9" <?php echo $grade == '9' ? 'selected' : ''; ?>>9th Grade</option>
+                    <option value="10" <?php echo $grade == '10' ? 'selected' : ''; ?>>10th Grade</option>
+                    <option value="11" <?php echo $grade == '11' ? 'selected' : ''; ?>>11th Grade</option>
+                    <option value="12" <?php echo $grade == '12' ? 'selected' : ''; ?>>12th Grade</option>
+                </select>
+                <button type="submit">View Lessons</button>
+            </form>
+            <ul>
+                <?php foreach ($lessons as $lesson): ?>
+                    <li>
+                        <strong><?php echo htmlspecialchars($lesson['subject']); ?>:</strong>
+                        <a href="<?php echo htmlspecialchars($lesson['video_url']); ?>" target="_blank">Watch Video</a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
+        <a href="?logout=1">Logout</a>
+    <?php endif; ?>
+</body>
+</html>
